@@ -8,11 +8,11 @@ using System.ComponentModel;
 public class MyBot : IChessBot
 {
     
-    Move the_best_move;
+    Move the_best_move = new Move();
     int fixed_depth;
-    Dictionary<ulong, Tuple<float, int>> transposition_table = new Dictionary<ulong, Tuple<float, int>>();
+    Dictionary<ulong, Tuple<float, long>> transposition_table = new Dictionary<ulong, Tuple<float, long>>();
     int[] material = new int[7] { 0, 1, 3, 3, 5, 9, 0 };
-    float[] control_piece_weights = new float[7] { 0, 0, 2, 2, 1F, 0.01F, -5F };
+    float[] control_piece_weights = new float[7] { 0, 0, 1.5F, 1.5F, 2F, 0.001F, -5F };
     float control_pawn_weight = 3;
     float[] control_square_weight = new float[64];
     
@@ -130,7 +130,7 @@ public class MyBot : IChessBot
         return result > 0 ? 1 : (result < 0 ? -1 : 0);
     }
 
-    float Minimax(Board board, int depth, float alpha, float beta)
+    float Minimax(Board board, int depth, float alpha, float beta, long inv_probability)
     {
 
 
@@ -144,21 +144,22 @@ public class MyBot : IChessBot
 
         if (board.IsInCheckmate())
         {
-            return board.IsWhiteToMove ? float.MinValue + fixed_depth - depth : float.MaxValue - fixed_depth + depth;
+            return board.IsWhiteToMove ? float.MinValue + inv_probability : float.MaxValue - inv_probability;
         }
 
         ulong zobrist_key = board.ZobristKey;
         if (transposition_table.ContainsKey(zobrist_key))
         {
-            if (transposition_table[zobrist_key].Item2 >= depth)
+            if (transposition_table[zobrist_key].Item2 <= inv_probability)
                 return transposition_table[zobrist_key].Item1;
         }
         // if in leaf
-        if (depth == 0)
+        if (inv_probability > 3e6)
             return StaticEvaluation(board);
 
         Move[] moves = board.GetLegalMoves();
         Array.Sort(moves, compare_moves);
+        int n = moves.Length;
         //Array.Sort(available_moves, compare_moves);
         if (board.IsWhiteToMove)
         {
@@ -167,7 +168,7 @@ public class MyBot : IChessBot
             foreach (Move move in moves)
             {
                 board.MakeMove(move);
-                float eval = Minimax(board, depth - 1, alpha, beta);
+                float eval = Minimax(board, depth - 1, alpha, beta, inv_probability * n);
                 /*
                 Console.WriteLine("Pozycje: " + board.GetFenString());
                 Console.WriteLine("Na glebokosci: " + depth);
@@ -176,7 +177,7 @@ public class MyBot : IChessBot
                 if (eval > max_eval)
                 {
                     max_eval = eval;
-                    if (depth == fixed_depth)
+                    if (inv_probability == 1)
                         the_best_move = move;
                 }
                 board.UndoMove(move);
@@ -188,7 +189,7 @@ public class MyBot : IChessBot
                 }
 
             }
-            transposition_table[board.ZobristKey] = new Tuple<float, int>(max_eval, depth);
+            transposition_table[board.ZobristKey] = new Tuple<float, long>(max_eval, inv_probability);
             return max_eval;
         }
 
@@ -196,7 +197,7 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            float eval = Minimax(board, depth - 1, alpha, beta);
+            float eval = Minimax(board, depth - 1, alpha, beta, inv_probability * n);
             /*
             Console.WriteLine("Pozycje: " + board.GetFenString());
             Console.WriteLine("Na glebokosci: " + depth);
@@ -205,7 +206,7 @@ public class MyBot : IChessBot
             if (eval < min_eval)
             {
                 min_eval = eval;
-                if (depth == fixed_depth)
+                if (inv_probability == 1)
                     the_best_move = move;
             }
             board.UndoMove(move);
@@ -217,30 +218,15 @@ public class MyBot : IChessBot
             }
 
         }
-        transposition_table[board.ZobristKey] = new Tuple<float, int>(min_eval, depth);
+        transposition_table[board.ZobristKey] = new Tuple<float, long>(min_eval, inv_probability);
         return min_eval;
     }
 
 
     public Move Think(Board board, Timer timer)
     {
-        /*
-        if (timer.MillisecondsRemaining < 8000)
-        {
-            fixed_depth = 4;
-            Console.WriteLine("Reduced depth:");
-            Console.WriteLine(timer);
-        }
-        else fixed_depth = 5;
-        Minimax(board, fixed_depth, float.MinValue, float.MaxValue);
-        //SpaceControlEval(board);
-        */
-        string fen = Console.ReadLine();
-        Board b1 = Board.CreateBoardFromFEN(fen);
-        fixed_depth = 4;
-        Minimax(b1, 4, float.MinValue, float.MaxValue);
-        Console.WriteLine(the_best_move);
-        return board.GetLegalMoves()[0];
+        Minimax(board, 4, float.MinValue, float.MaxValue, 1);
+        return the_best_move;
 
 
     }
