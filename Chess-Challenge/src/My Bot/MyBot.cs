@@ -9,7 +9,7 @@ public class MyBot : IChessBot
 {
     
     Move the_best_move = new Move();
-    int fixed_depth;
+    long fixed_inv_probabilty = (long)(2e6);
     Dictionary<ulong, Tuple<float, long>> transposition_table = new Dictionary<ulong, Tuple<float, long>>();
     int[] material = new int[7] { 0, 1, 3, 3, 5, 9, 0 };
     float[] control_piece_weights = new float[7] { 0, 0, 1.5F, 1.5F, 2F, 0.001F, -5F };
@@ -130,7 +130,7 @@ public class MyBot : IChessBot
         return result > 0 ? 1 : (result < 0 ? -1 : 0);
     }
 
-    float Minimax(Board board, int depth, float alpha, float beta, long inv_probability)
+    float Minimax(Board board, float alpha, float beta, long inv_probability)
     {
 
 
@@ -154,7 +154,7 @@ public class MyBot : IChessBot
                 return transposition_table[zobrist_key].Item1;
         }
         // if in leaf
-        if (inv_probability > 3e6)
+        if (inv_probability > fixed_inv_probabilty)
             return StaticEvaluation(board);
 
         Move[] moves = board.GetLegalMoves();
@@ -164,11 +164,16 @@ public class MyBot : IChessBot
         if (board.IsWhiteToMove)
         {
             float max_eval = float.MinValue;
-
             foreach (Move move in moves)
             {
+                int divider = 1;
+                if (move.IsCapture)
+                    divider *= 3;
+                if (board.IsInCheck())
+                    divider *= 2;
+
                 board.MakeMove(move);
-                float eval = Minimax(board, depth - 1, alpha, beta, inv_probability * n);
+                float eval = Minimax(board, alpha, beta, inv_probability * n / divider);
                 /*
                 Console.WriteLine("Pozycje: " + board.GetFenString());
                 Console.WriteLine("Na glebokosci: " + depth);
@@ -196,8 +201,13 @@ public class MyBot : IChessBot
         float min_eval = float.MaxValue;
         foreach (Move move in moves)
         {
+            int divider = 1;
+            if (move.IsCapture)
+                divider *= 3;
+            if (board.IsInCheck())
+                divider *= 2;
             board.MakeMove(move);
-            float eval = Minimax(board, depth - 1, alpha, beta, inv_probability * n);
+            float eval = Minimax(board, alpha, beta, inv_probability * n / divider);
             /*
             Console.WriteLine("Pozycje: " + board.GetFenString());
             Console.WriteLine("Na glebokosci: " + depth);
@@ -225,7 +235,7 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        Minimax(board, 4, float.MinValue, float.MaxValue, 1);
+        Minimax(board, float.MinValue, float.MaxValue, 1);
         return the_best_move;
 
 
