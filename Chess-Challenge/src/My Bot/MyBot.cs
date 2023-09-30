@@ -168,9 +168,9 @@ public class MyBot : IChessBot
             {
                 int divider = 1;
                 if (move.IsCapture)
-                    divider *= 3;
-                if (board.IsInCheck())
                     divider *= 2;
+                //if (board.IsInCheck())
+                //    divider *= 2;
 
                 board.MakeMove(move);
                 float eval = Minimax(board, alpha, beta, inv_probability * n / divider);
@@ -203,9 +203,9 @@ public class MyBot : IChessBot
         {
             int divider = 1;
             if (move.IsCapture)
-                divider *= 3;
-            if (board.IsInCheck())
                 divider *= 2;
+            //if (board.IsInCheck())
+            //    divider *= 2;
             board.MakeMove(move);
             float eval = Minimax(board, alpha, beta, inv_probability * n / divider);
             /*
@@ -235,7 +235,13 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        Minimax(board, float.MinValue, float.MaxValue, 1);
+        if(timer.MillisecondsRemaining < 15000)
+            Minimax(board, float.MinValue, float.MaxValue, (long)(1e-3));
+        else
+            Minimax(board, float.MinValue, float.MaxValue, 1);
+
+
+
         return the_best_move;
 
 
