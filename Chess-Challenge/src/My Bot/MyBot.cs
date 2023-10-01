@@ -1,44 +1,54 @@
 ﻿using ChessChallenge.API;
 using System;
-using System.Diagnostics;
 using System.Collections.Generic;
-using System.ComponentModel;
 
 
 public class MyBot : IChessBot
 {
     
     Move the_best_move = new Move();
-    long fixed_inv_probabilty = (long)(2e6);
+    long fixed_inv_probabilty = (long)(1e6);
     Dictionary<ulong, Tuple<float, long>> transposition_table = new Dictionary<ulong, Tuple<float, long>>();
     int[] material = new int[7] { 0, 1, 3, 3, 5, 9, 0 };
-    float[] control_piece_weights = new float[7] { 0, 0, 1.5F, 1.5F, 2F, 0.001F, -5F };
-    float control_pawn_weight = 3;
+    float[] control_piece_weights = new float[7] { 0, 0, 2F, 2F, 1F, 0, -1F };
+    float control_pawn_weight = 5;
+    float pawn_in_center = 8;
     float[] control_square_weight = new float[64];
+
     
 
     public MyBot()
     {
         for(int i = 0; i < 64;i++)
             control_square_weight[i] = 0.01F;
-        control_square_weight[27] = 0.3F;
-        control_square_weight[28] = 0.3F;
-        control_square_weight[35] = 0.3F;
-        control_square_weight[36] = 0.3F;
+        control_square_weight[27] = 0.2F;
+        control_square_weight[28] = 0.2F;
+        control_square_weight[35] = 0.2F;
+        control_square_weight[36] = 0.2F;
 
-        control_square_weight[0] = -0.1F;
-        control_square_weight[1] = -0.1F;
-        control_square_weight[6] = -0.1F;
-        control_square_weight[7] = -0.1F;
-        control_square_weight[63] = -0.1F;
-        control_square_weight[62] = -0.1F;
-        control_square_weight[56] = -0.1F;
-        control_square_weight[57] = -0.1F;
+        control_square_weight[0] = -0.01F;
+        control_square_weight[1] = -0.01F;
+        control_square_weight[6] = -0.01F;
+        control_square_weight[7] = -0.01F;
+        control_square_weight[63] = -0.01F;
+        control_square_weight[62] = -0.01F;
+        control_square_weight[56] = -0.01F;
+        control_square_weight[57] = -0.01F;
+
+        control_square_weight[18] = 0.2F;
+        control_square_weight[19] = 0.2F;
+        control_square_weight[20] = 0.2F;
+        control_square_weight[21] = 0.2F;
+        control_square_weight[42] = 0.2F;
+        control_square_weight[43] = 0.2F;
+        control_square_weight[44] = 0.2F;
+        control_square_weight[45] = 0.2F;
     }
     
     
     float SpaceControlEval(Board board)
     {
+        
         float e = 0;
         float temp = 0;
         foreach (Move move in board.GetLegalMoves())
@@ -47,6 +57,7 @@ public class MyBot : IChessBot
                 control_square_weight[move.TargetSquare.Index] *
                 (board.IsWhiteToMove ? 1 : -1);
             e += temp;
+            //Console.WriteLine("added " + temp + " points for location of " + move.MovePieceType + " on " + move.TargetSquare.Name);
         }
         board.ForceSkipTurn();
         foreach (Move move in board.GetLegalMoves())
@@ -55,6 +66,7 @@ public class MyBot : IChessBot
                control_square_weight[move.TargetSquare.Index] *
                (board.IsWhiteToMove ? 1 : -1);
             e += temp;
+            //Console.WriteLine("added " + temp + " points for location of " + move.MovePieceType + " on " + move.TargetSquare.Name);
         }
         board.UndoSkipTurn();
 
@@ -62,29 +74,24 @@ public class MyBot : IChessBot
         {
             e += pawn.Square.File == 0 ? 0 : control_square_weight[pawn.Square.Index + 7] * control_pawn_weight;
             e += pawn.Square.File == 7 ? 0 : control_square_weight[pawn.Square.Index + 9] * control_pawn_weight;
+            e += (pawn.Square.Index == 27 ||
+                    pawn.Square.Index == 28 ||
+                    pawn.Square.Index == 35 ||
+                    pawn.Square.Index == 36) ? pawn_in_center : 0;
+
         }
         foreach (Piece pawn in board.GetPieceList(PieceType.Pawn, false))
         {
             e -= pawn.Square.File == 0 ? 0 : control_square_weight[pawn.Square.Index - 9] * control_pawn_weight;
             e -= pawn.Square.File == 7 ? 0 : control_square_weight[pawn.Square.Index - 7] * control_pawn_weight;
+            e -= (pawn.Square.Index == 27 ||
+                    pawn.Square.Index == 28 ||
+                    pawn.Square.Index == 35 ||
+                    pawn.Square.Index == 36) ? pawn_in_center : 0;
         }
-        /*
-        foreach(Piece knight in board.GetPieceList(PieceType.Knight, true))
-        {
-            if(knight.Square.Index == 1 || knight.Square.Index == 6)
-            {
-                e -= 0.5F;
-            }
-        }
-        foreach (Piece knight in board.GetPieceList(PieceType.Knight, false))
-        {
-            if (knight.Square.Index == 57 || knight.Square.Index == 62)
-            {
-                e += 0.5F;
-            }
-        }
-        */
-        
+
+
+
         return e;
 
     }
@@ -93,7 +100,7 @@ public class MyBot : IChessBot
 
     float StaticEvaluation(Board board)
     {
-        return MaterialEval(board) + SpaceControlEval(board);
+        return MaterialEval(board) + 0.1F * SpaceControlEval(board);
     }
 
     float MaterialEval(Board board, bool all_positive = false)
@@ -116,14 +123,14 @@ public class MyBot : IChessBot
         if (move1.IsCapture)
         {
             result--;
-            if (move1.MovePieceType == PieceType.Pawn)
+            if (move1.MovePieceType == PieceType.Pawn || move1.MovePieceType == PieceType.Queen)
                 result--;
         }
 
         if (move2.IsCapture)
         {
             result++;
-            if (move2.MovePieceType == PieceType.Pawn)
+            if (move2.MovePieceType == PieceType.Pawn || move2.MovePieceType == PieceType.Queen)
                 result++;
         }
 
@@ -168,7 +175,7 @@ public class MyBot : IChessBot
             {
                 int divider = 1;
                 if (move.IsCapture)
-                    divider *= 2;
+                    divider *= 3;
                 //if (board.IsInCheck())
                 //    divider *= 2;
 
@@ -203,16 +210,11 @@ public class MyBot : IChessBot
         {
             int divider = 1;
             if (move.IsCapture)
-                divider *= 2;
+                divider *= 3;
             //if (board.IsInCheck())
             //    divider *= 2;
             board.MakeMove(move);
             float eval = Minimax(board, alpha, beta, inv_probability * n / divider);
-            /*
-            Console.WriteLine("Pozycje: " + board.GetFenString());
-            Console.WriteLine("Na glebokosci: " + depth);
-            Console.WriteLine("Oceniam na: " + eval);
-            */
             if (eval < min_eval)
             {
                 min_eval = eval;
@@ -235,23 +237,17 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        if(timer.MillisecondsRemaining < 15000)
-            Minimax(board, float.MinValue, float.MaxValue, (long)(1e-3));
+        if (MaterialEval(board, true) < 24)
+            control_piece_weights[6] = 1;
+
+
+        if (timer.MillisecondsRemaining < 15000)
+            Minimax(board, float.MinValue, float.MaxValue, (long)1e3);
         else
             Minimax(board, float.MinValue, float.MaxValue, 1);
-
-
 
         return the_best_move;
 
 
     }
-
-    void analize_position(string fen)
-    {
-        Board board = Board.CreateBoardFromFEN(fen);
-        SpaceControlEval(board);
-        
-    }
-
 }
